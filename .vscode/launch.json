@@ -7,7 +7,7 @@
             "request": "launch",
             "purpose": ["debug-in-terminal"],
             "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
-            "program": "${workspaceFolder}\\code\\catfish.py",
+            "program": "${workspaceFolder}\\code\\zombie.py",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": true
