@@ -51,58 +51,12 @@ gun_turn_speed = 0.35
 bullet_radius = 4
 bullet_lifetime = 120
 bullet_fire_timer = 0
+bullet_speed = 10
+bullet_damage = 1
+bullet_fire_interval = 16
 bullets = []
 left_mouse_was_down = False
-e_was_down = False
-
-weapon_configs = {
-    "pistol": {
-        "color": (185, 185, 185),
-        "fire_mode": "semi",
-        "damage": 1,
-        "bullet_speed": 10,
-        "fire_interval": 16,
-        "pellets": 1,
-        "spread": 0.0,
-    },
-    "red": {
-        "color": (220, 70, 70),
-        "fire_mode": "auto",
-        "damage": 1,
-        "bullet_speed": 10,
-        "fire_interval": 5,
-        "pellets": 1,
-        "spread": 0.0,
-    },
-    "green": {
-        "color": (70, 190, 90),
-        "fire_mode": "semi",
-        "damage": 1,
-        "bullet_speed": 9,
-        "fire_interval": 15,
-        "pellets": 5,
-        "spread": 0.24,
-    },
-    "blue": {
-        "color": (60, 140, 255),
-        "fire_mode": "semi",
-        "damage": 2,
-        "bullet_speed": 12,
-        "fire_interval": 10,
-        "pellets": 1,
-        "spread": 0.0,
-    },
-    "yellow": {
-        "color": (235, 210, 60),
-        "fire_mode": "semi",
-        "damage": 5,
-        "bullet_speed": 16,
-        "fire_interval": 26,
-        "pellets": 1,
-        "spread": 0.0,
-    },
-}
-current_weapon_name = "pistol"
+bullet_color = (185, 185, 185)
 
 enemy_color = (220, 50, 50)
 enemy_outline_color = (120, 20, 20)
@@ -128,18 +82,12 @@ crate_spawn_interval = 420
 crate_spawn_timer = 0
 crates = []
 
-pickup_radius = 18
-weapon_drops = []
 font = pygame.font.SysFont(None, 24)
 title_font = pygame.font.SysFont(None, 56)
 menu_font = pygame.font.SysFont(None, 32)
 menu_panel_title_font = pygame.font.SysFont(None, 48)
 menu_option_font = pygame.font.SysFont(None, 34)
 menu_meta_font = pygame.font.SysFont(None, 26)
-
-ENEMY_KILL_POINTS = 10
-CRATE_BREAK_POINTS = 5
-SURVIVAL_POINTS_INTERVAL = FPS
 SAVE_FILE_PATH = Path(__file__).resolve().parent.parent / "savegame.json"
 
 
@@ -197,15 +145,6 @@ def spawn_crate(target_x, target_y):
     }
 
 
-def spawn_weapon_drop(x, y):
-    weapon_name = random.choice(list(weapon_configs.keys()))
-    return {
-        "x": x,
-        "y": y,
-        "weapon_name": weapon_name,
-    }
-
-
 def get_gun_tip(player_x, player_y, gun_angle):
     return (
         player_x + math.cos(gun_angle) * gun_length,
@@ -213,24 +152,17 @@ def get_gun_tip(player_x, player_y, gun_angle):
     )
 
 
-def spawn_bullets(player_x, player_y, gun_angle, weapon_name):
-    weapon = weapon_configs[weapon_name]
+def spawn_bullets(player_x, player_y, gun_angle):
     bullet_x, bullet_y = get_gun_tip(player_x, player_y, gun_angle)
-    spawned_bullets = []
-
-    for _ in range(weapon["pellets"]):
-        pellet_angle = gun_angle + random.uniform(-weapon["spread"], weapon["spread"])
-        spawned_bullets.append({
-            "x": bullet_x,
-            "y": bullet_y,
-            "vx": math.cos(pellet_angle) * weapon["bullet_speed"],
-            "vy": math.sin(pellet_angle) * weapon["bullet_speed"],
-            "life": bullet_lifetime,
-            "damage": weapon["damage"],
-            "color": weapon["color"],
-        })
-
-    return spawned_bullets
+    return [{
+        "x": bullet_x,
+        "y": bullet_y,
+        "vx": math.cos(gun_angle) * bullet_speed,
+        "vy": math.sin(gun_angle) * bullet_speed,
+        "life": bullet_lifetime,
+        "damage": bullet_damage,
+        "color": bullet_color,
+    }]
 
 
 def get_difficulty_settings(level):
@@ -595,8 +527,6 @@ while running:
         bullet_fire_timer -= 1
 
     for event in events:
-        if event.type == pygame.MOUSEWHEEL:
-            gun_angle += event.y * gun_turn_speed
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             game_state = "menu"
     
@@ -640,6 +570,10 @@ while running:
     camera_y = player_y - window_height / 2
     screen_x = int(player_x - camera_x)
     screen_y = int(player_y - camera_y)
+    
+    mouse_x, mouse_y = pygame.mouse.get_pos()
+    gun_angle = math.atan2(mouse_y - screen_y, mouse_x - screen_x)
+    
     gun_tip_x, gun_tip_y = get_gun_tip(player_x, player_y, gun_angle)
     gun_tip_screen_x = int(gun_tip_x - camera_x)
     gun_tip_screen_y = int(gun_tip_y - camera_y)
