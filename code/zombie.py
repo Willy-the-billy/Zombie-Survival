@@ -177,10 +177,9 @@ def get_difficulty_settings(level):
 
 
 def reset_game_state():
-    global player_x, player_y, gun_angle, bullets, enemies, crates, weapon_drops
+    global player_x, player_y, gun_angle, bullets, enemies, crates
     global enemy_spawn_timer, crate_spawn_timer, bullet_fire_timer
-    global current_weapon_name, left_mouse_was_down, e_was_down
-    global score, survival_point_timer
+    global left_mouse_was_down
     global player_health, player_damage_cooldown_timer
     global current_enemy_speed, current_enemy_max_health, current_enemy_spawn_interval
 
@@ -190,17 +189,12 @@ def reset_game_state():
     bullets = []
     enemies = []
     crates = []
-    weapon_drops = []
 
     enemy_spawn_timer = 0
     crate_spawn_timer = 0
     bullet_fire_timer = 0
-    current_weapon_name = "pistol"
     left_mouse_was_down = False
-    e_was_down = False
 
-    score = 0
-    survival_point_timer = 0
     player_health = player_max_health
     player_damage_cooldown_timer = 0
 
@@ -309,7 +303,6 @@ def draw_menu_panel(surface, options, selected_index):
     meta_lines = [
         f"Save: {profile_name}",
         f"Difficulty: {profile_difficulty}",
-        f"High Score: {high_score}",
     ]
     meta_y = panel_rect.top + 118
     for meta_line in meta_lines:
@@ -350,9 +343,6 @@ def draw_menu_panel(surface, options, selected_index):
 
 
 game_state = "menu"
-score = 0
-high_score = 0
-survival_point_timer = 0
 current_player_name = ""
 selected_difficulty = 5
 new_save_name_input = ""
@@ -508,8 +498,6 @@ while running:
         draw_centered_text(screen, "Game Over", max(90, window_height // 3), (250, 120, 120), title_font)
         draw_centered_text(screen, f"Player: {current_player_name}", max(130, window_height // 3 + 40), (230, 230, 230))
         draw_centered_text(screen, f"Difficulty: {selected_difficulty}", max(162, window_height // 3 + 72), (245, 215, 120))
-        draw_centered_text(screen, f"Score: {score}", max(145, window_height // 3 + 55), (250, 250, 250))
-        draw_centered_text(screen, f"High Score: {high_score}", max(185, window_height // 3 + 95), (140, 220, 140))
         draw_centered_text(screen, "Press Enter for Main Menu", max(235, window_height // 3 + 145), (250, 220, 120))
         draw_centered_text(screen, "Press Escape to Quit", max(275, window_height // 3 + 185), (220, 220, 220))
         pygame.display.flip()
@@ -517,10 +505,6 @@ while running:
 
     enemy_spawn_timer += 1
     crate_spawn_timer += 1
-    survival_point_timer += 1
-    if survival_point_timer >= SURVIVAL_POINTS_INTERVAL:
-        score += 1
-        survival_point_timer = 0
     if player_damage_cooldown_timer > 0:
         player_damage_cooldown_timer -= 1
     if bullet_fire_timer > 0:
@@ -532,7 +516,6 @@ while running:
     
     keys = pygame.key.get_pressed()
     mouse_buttons = pygame.mouse.get_pressed()
-    e_pressed = keys[pygame.K_e] and not e_was_down
     if keys[pygame.K_w]:
         player_y -= player_speed
     if keys[pygame.K_s]:
@@ -542,13 +525,10 @@ while running:
     if keys[pygame.K_d]:
         player_x += player_speed
 
-    current_weapon = weapon_configs[current_weapon_name]
-    should_fire = mouse_buttons[0] and bullet_fire_timer == 0
-    if current_weapon["fire_mode"] == "semi":
-        should_fire = should_fire and not left_mouse_was_down
+    should_fire = mouse_buttons[0] and bullet_fire_timer == 0 and not left_mouse_was_down
     if should_fire:
-        bullets.extend(spawn_bullets(player_x, player_y, gun_angle, current_weapon_name))
-        bullet_fire_timer = current_weapon["fire_interval"]
+        bullets.extend(spawn_bullets(player_x, player_y, gun_angle))
+        bullet_fire_timer = bullet_fire_interval
     left_mouse_was_down = mouse_buttons[0]
 
     if enemy_spawn_timer >= current_enemy_spawn_interval:
@@ -587,16 +567,12 @@ while running:
         for enemy in enemies:
             if circles_overlap(bullet["x"], bullet["y"], bullet_radius, enemy["x"], enemy["y"], enemy["radius"]):
                 enemy["health"] -= bullet["damage"]
-                if enemy["health"] <= 0:
-                    score += ENEMY_KILL_POINTS
                 hit_target = True
                 break
         if not hit_target:
             for crate in crates:
                 if circle_intersects_box(bullet["x"], bullet["y"], bullet_radius, crate["x"], crate["y"], crate["size"]):
                     crate["broken"] = True
-                    weapon_drops.append(spawn_weapon_drop(crate["x"], crate["y"]))
-                    score += CRATE_BREAK_POINTS
                     hit_target = True
                     break
         if bullet["life"] > 0 and not hit_target:
@@ -605,14 +581,6 @@ while running:
     enemies = [enemy for enemy in enemies if enemy["health"] > 0]
     crates = [crate for crate in crates if not crate.get("broken")]
 
-    if e_pressed:
-        for drop in weapon_drops:
-            if circles_overlap(player_x, player_y, player_radius, drop["x"], drop["y"], pickup_radius):
-                drop["weapon_name"], current_weapon_name = current_weapon_name, drop["weapon_name"]
-                bullet_fire_timer = 0
-                break
-    e_was_down = keys[pygame.K_e]
-
     for enemy in enemies:
         if circles_overlap(player_x, player_y, player_radius, enemy["x"], enemy["y"], enemy["radius"]):
             if player_damage_cooldown_timer == 0:
@@ -620,8 +588,6 @@ while running:
                 player_damage_cooldown_timer = player_damage_cooldown_frames
                 if player_health <= 0:
                     player_health = 0
-                    high_score = max(high_score, score)
-                    persist_current_profile()
                     game_state = "game_over"
             break
 
@@ -647,16 +613,6 @@ while running:
         health_bar_top = enemy_screen_y - enemy["radius"] - 8
         pygame.draw.rect(screen, (70, 20, 20), (health_bar_left, health_bar_top, health_bar_width, 4))
         pygame.draw.rect(screen, (40, 220, 80), (health_bar_left, health_bar_top, int(health_bar_width * health_ratio), 4))
-    for drop in weapon_drops:
-        drop_screen_x = int(drop["x"] - camera_x)
-        drop_screen_y = int(drop["y"] - camera_y)
-        drop_color = weapon_configs[drop["weapon_name"]]["color"]
-        pygame.draw.circle(screen, drop_color, (drop_screen_x, drop_screen_y), pickup_radius)
-        pygame.draw.circle(screen, (20, 20, 20), (drop_screen_x, drop_screen_y), pickup_radius, 2)
-        if circles_overlap(player_x, player_y, player_radius, drop["x"], drop["y"], pickup_radius):
-            prompt_label = font.render("Press E to swap", True, (245, 245, 245))
-            prompt_rect = prompt_label.get_rect(center=(drop_screen_x, drop_screen_y - 18))
-            screen.blit(prompt_label, prompt_rect)
     pygame.draw.line(screen, gun_color, (screen_x, screen_y), (gun_tip_screen_x, gun_tip_screen_y), gun_width)
     pygame.draw.circle(screen, player_color, (screen_x, screen_y), player_radius)
     for bullet in bullets:
@@ -664,16 +620,10 @@ while running:
         bullet_screen_y = int(bullet["y"] - camera_y)
         pygame.draw.circle(screen, bullet["color"], (bullet_screen_x, bullet_screen_y), bullet_radius)
 
-    weapon_label = font.render(f"Weapon: {current_weapon_name}", True, weapon_configs[current_weapon_name]["color"])
-    screen.blit(weapon_label, (12, 12))
     name_label = font.render(f"Player: {current_player_name}", True, (225, 225, 225))
-    screen.blit(name_label, (12, 36))
+    screen.blit(name_label, (12, 12))
     difficulty_label = font.render(f"Difficulty: {selected_difficulty}", True, (245, 215, 120))
-    screen.blit(difficulty_label, (12, 60))
-    score_label = font.render(f"Score: {score}", True, (245, 245, 245))
-    screen.blit(score_label, (12, 84))
-    high_score_label = font.render(f"Best: {high_score}", True, (140, 220, 140))
-    screen.blit(high_score_label, (12, 108))
+    screen.blit(difficulty_label, (12, 36))
 
     health_label = font.render(f"Health: {player_health}/{player_max_health}", True, (245, 245, 245))
     health_label_rect = health_label.get_rect(topright=(window_width - 12, 12))
